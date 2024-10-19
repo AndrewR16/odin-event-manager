@@ -3,6 +3,8 @@ require 'csv'
 require 'google/apis/civicinfo_v2'
 require 'erb'
 
+$hourly_activity = Array.new(24, 0)
+
 def clean_zipcode(zipcode)
   zipcode.to_s.rjust(5, '0')[0..4]
 end
@@ -24,9 +26,9 @@ def legislators_by_zipcode(zipcode)
 end
 
 def save_thank_you_letter(id, form_letter)
-  Dir.mkdir('output') unless Dir.exist?('output')
+  Dir.mkdir('output/thank_you_letters') unless Dir.exist?('output/thank_you_letters')
 
-  filename = "output/thanks_#{id}.html"
+  filename = "output/thank_you_letters/thanks_#{id}.html"
 
   File.open(filename, 'w') do |file|
     file.puts form_letter
@@ -50,7 +52,23 @@ def clean_phone_number(phone_number)
   "(#{phone_number[0..2]})-#{phone_number[3..5]}-#{phone_number[6..9]}"
 end
 
+def record_hourly_activity(registration_date)
+  new_time = Time.strptime(registration_date, "%m/%d/%y %R")
+  $hourly_activity[new_time.hour] += 1
+end
+
+def output_hourly_activity()
+  # Create file and headers if needed
+  CSV.open("output/hourly_activity.csv", "w") do |csv|
+    csv << ['Hour', 'NumberOfRespondants']
+    $hourly_activity.each_with_index do |activity_amount, index|
+      csv << [index, activity_amount]
+    end
+  end
+end
+
 puts 'EventManager initialized'
+Dir.mkdir('output') unless Dir.exist?('output')
 
 contents = CSV.open(
   'event_attendees.csv',
@@ -66,9 +84,14 @@ contents.each do |row|
   name = row[:first_name]
   zipcode = clean_zipcode(row[:zipcode])
   legislators = legislators_by_zipcode(zipcode)
+
   phone_number = row[:homephone]
+  registration_date = row[:regdate]
 
   form_letter = erb_template.result(binding)
 
   save_thank_you_letter(id, form_letter)
+  record_hourly_activity(registration_date)
 end
+
+output_hourly_activity
