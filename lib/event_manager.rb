@@ -4,6 +4,7 @@ require 'google/apis/civicinfo_v2'
 require 'erb'
 
 $hourly_activity = Array.new(24, 0)
+$daily_activity = Array.new(7, 0)
 
 def clean_zipcode(zipcode)
   zipcode.to_s.rjust(5, '0')[0..4]
@@ -52,16 +53,25 @@ def clean_phone_number(phone_number)
   "(#{phone_number[0..2]})-#{phone_number[3..5]}-#{phone_number[6..9]}"
 end
 
-def record_hourly_activity(registration_date)
+def record_activity(registration_date)
   new_time = Time.strptime(registration_date, "%m/%d/%y %R")
   $hourly_activity[new_time.hour] += 1
+  $daily_activity[new_time.wday] += 1
 end
 
 def output_hourly_activity()
-  # Create file and headers if needed
   CSV.open("output/hourly_activity.csv", "w") do |csv|
     csv << ['Hour', 'NumberOfRespondants']
     $hourly_activity.each_with_index do |activity_amount, index|
+      csv << [index, activity_amount]
+    end
+  end
+end
+
+def output_daily_activity()
+  CSV.open("output/daily_activity.csv", "w") do |csv|
+    csv << ['DayOfWeek', 'NumberOfRespondants']
+    $daily_activity.each_with_index do |activity_amount, index|
       csv << [index, activity_amount]
     end
   end
@@ -91,7 +101,8 @@ contents.each do |row|
   form_letter = erb_template.result(binding)
 
   save_thank_you_letter(id, form_letter)
-  record_hourly_activity(registration_date)
+  record_activity(registration_date)
 end
 
 output_hourly_activity
+output_daily_activity
